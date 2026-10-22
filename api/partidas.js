@@ -79,7 +79,7 @@ Gere pelo menos 5 partidas reais ou projetadas para a liga solicitada.`;
     const data = await response.json();
     let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // Extrai o conteúdo JSON usando Expressão Regular para ignorar citações/textos extras
+    // Extrai o bloco de JSON do texto bruto gerado pelo modelo
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     let parsedData = { partidas: [] };
 
