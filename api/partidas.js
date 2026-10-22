@@ -1,5 +1,4 @@
 export default async function handler(req, res) {
-  // Cabeçalhos explícitos para CORS
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS,PATCH,DELETE,POST,PUT");
@@ -28,32 +27,42 @@ export default async function handler(req, res) {
 
   const nomeLiga = nomesLigas[liga] || "Brasileirão Série A 2026";
 
-  const prompt = `Pesquise no Google o histórico acumulado de todas as rodadas até hoje e os próximos 10 jogos da competição "${nomeLiga}".
-  Retorne APENAS um objeto JSON válido exatamente nesta estrutura:
-  {
-    "partidas": [
-      {
-        "id": "jogo-1",
-        "leagueName": "${nomeLiga}",
-        "date": "Data e Hora",
-        "venue": "Estádio, Cidade",
-        "exp_home": 1.8,
-        "exp_away": 1.1,
-        "home": { "name": "Time Mandante", "badge": "https://media.api-sports.io/football/teams/127.png" },
-        "away": { "name": "Time Visitante", "badge": "https://media.api-sports.io/football/teams/121.png" },
-        "predictedScore": "2 - 1",
-        "metrics": {
-          "shots": { "home": 14.5, "away": 11.0, "max": 22 },
-          "shotsOnTarget": { "home": 5.5, "away": 4.0, "max": 10 },
-          "corners": { "home": 6.5, "away": 4.5, "max": 12 },
-          "fouls": { "home": 13.0, "away": 14.0, "max": 22 },
-          "yellowCards": { "home": 2.1, "away": 2.5, "max": 6 },
-          "redCards": { "home": 0.1, "away": 0.2, "max": 2 }
-        }
-      }
-    ]
-  }
-  Calcule "exp_home" e "exp_away" com base na média de gols marcados e sofridos desde a Rodada 1.`;
+  const prompt = `Considere a competição de futebol "${nomeLiga}".
+Pesquise as informações mais recentes das partidas atuais e próximas rodadas.
+Retorne APENAS um objeto JSON válido (sem blocos de código markdown ou texto antes/depois) exatamente nesta estrutura:
+
+{
+  "partidas": [
+    {
+      "id": "jogo-1",
+      "leagueName": "${nomeLiga}",
+      "date": "SÁB., 24/10 • 16:30",
+      "venue": "Estádio Exemplo, Cidade",
+      "exp_home": 1.7,
+      "exp_away": 1.1,
+      "predictedScore": "2 - 1",
+      "home": { "name": "Time Mandante", "badge": "https://media.api-sports.io/football/teams/127.png" },
+      "away": { "name": "Time Visitante", "badge": "https://media.api-sports.io/football/teams/121.png" },
+      "metrics": {
+        "shots": { "home": 14.5, "away": 11.0, "max": 22 },
+        "shotsOnTarget": { "home": 5.5, "away": 4.0, "max": 10 },
+        "corners": { "home": 6.5, "away": 4.5, "max": 12 },
+        "fouls": { "home": 13.0, "away": 14.0, "max": 22 },
+        "yellowCards": { "home": 2.1, "away": 2.5, "max": 6 },
+        "redCards": { "home": 0.1, "away": 0.2, "max": 2 }
+      },
+      "goalscorers": [
+        { "name": "Atacante Principal", "team": "Time Mandante", "pos": "ATA", "prob": 55, "teamType": "home" },
+        { "name": "Meia Atacante", "team": "Time Visitante", "pos": "MEI", "prob": 38, "teamType": "away" }
+      ],
+      "assists": [
+        { "name": "Líder em Assistências", "team": "Time Mandante", "pos": "MEI", "prob": 45, "teamType": "home" }
+      ]
+    }
+  ]
+}
+
+Gere pelo menos 5 partidas reais ou projetadas para a liga solicitada.`;
 
   try {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
@@ -63,27 +72,31 @@ export default async function handler(req, res) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
-        tools: [{ google_search: {} }],
-        generationConfig: {
-          response_mime_type: "application/json"
-        }
+        tools: [{ google_search: {} }]
       }),
     });
 
     const data = await response.json();
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
+    let rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
+    // Extrai o conteúdo JSON usando Expressão Regular para ignorar citações/textos extras
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     let parsedData = { partidas: [] };
-    try {
-      const cleanJson = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
-      parsedData = JSON.parse(cleanJson);
-    } catch (parseErr) {
-      console.error("Erro no parse de JSON do Gemini:", rawText);
+
+    if (jsonMatch) {
+      try {
+        parsedData = JSON.parse(jsonMatch[0]);
+      } catch (parseErr) {
+        console.error("Erro no JSON.parse:", parseErr, rawText);
+      }
     }
 
-    return res.status(200).json({ status: "success", partidas: parsedData.partidas || [] });
+    return res.status(200).json({
+      status: "success",
+      partidas: parsedData.partidas || []
+    });
   } catch (err) {
-    console.error("Erro geral na função:", err);
-    return res.status(200).json({ status: "error", error: err.message, partidas: [] });
+    console.error("Erro geral na API:", err);
+    return res.status(500).json({ status: "error", error: err.message, partidas: [] });
   }
 }
