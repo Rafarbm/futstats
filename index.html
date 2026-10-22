@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FutStats AI | Dashboard Avançado de Previsões e Estatísticas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            dark: '#080C14', card: '#111827', cardLight: '#1F2937', border: '#1F293D',
+                            emerald: '#10B981', cyan: '#06B6D4', amber: '#F59E0B', purple: '#8B5CF6', rose: '#F43F5E'
+                        }
+                    },
+                    fontFamily: { sans: ['Inter', 'sans-serif'] }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #080C14;
+            color: #F3F4F6;
+            font-family: 'Inter', sans-serif;
+            overflow-x: hidden;
+        }
+
+        .glass-card {
+            background: rgba(17, 24, 39, 0.75);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-card-hover:hover {
+            border-color: rgba(16, 185, 129, 0.3);
+            box-shadow: 0 10px 30px -10px rgba(16, 185, 129, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .glow-emerald {
+            box-shadow: 0 0 25px rgba(16, 185, 129, 0.2);
+        }
+
+        .stat-bar-fill {
+            transition: width 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        @keyframes pulse-glow {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.6;
+                transform: scale(1.05);
+            }
+        }
+
+        .live-dot {
+            animation: pulse-glow 2s infinite ease-in-out;
+        }
+    </style>
+</head>
+
+<body class="min-h-screen flex flex-col justify-between selection:bg-emerald-500 selection:text-slate-950">
+
+    <div id="app" class="flex-grow flex flex-col">
+        <!-- NAVBAR -->
+        <header class="sticky top-0 z-50 glass-card border-b border-brand-border bg-brand-dark/80 backdrop-blur-xl">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-4">
+                <div class="flex items-center space-x-3 cursor-pointer">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 via-teal-500 to-cyan-500 flex items-center justify-center text-slate-950 font-black shadow-lg shadow-emerald-500/20">
+                        <i class="fa-solid fa-chart-line text-lg"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xl font-black tracking-tight text-white">FutStats</span>
+                            <span class="text-[10px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gradient-to-r from-emerald-500/20 to-cyan-500/20 text-emerald-400 border border-emerald-500/30">AI PREDICTOR</span>
+                        </div>
+                        <p class="text-xs text-slate-400 hidden sm:block">Previsões Probabilísticas e Estatísticas de Futebol</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3 flex-grow max-w-md justify-end">
+                    <div class="relative min-w-[150px]">
+                        <select id="leagueSelect" onchange="filterLeague(this.value)" class="w-full bg-slate-900 border border-brand-border rounded-xl px-3 py-2 text-xs font-semibold text-slate-200 focus:outline-none focus:border-emerald-500 cursor-pointer">
+                            <option value="brasileirao" selected>🇧🇷 Brasileirão 2026</option>
+                            <option value="champions">🇪🇺 Champions League</option>
+                            <option value="premier">🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League</option>
+                        </select>
+                    </div>
+
+                    <div id="apiStatusBadge" class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        <span class="w-2 h-2 rounded-full bg-emerald-400 live-dot"></span>
+                        <span id="apiStatusText">Engine JS Ativa</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- MAIN CONTAINER -->
+        <main class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6 flex-grow">
+
+            <!-- MATCHES STRIP -->
+            <section class="space-y-2">
+                <div class="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-slate-400 px-1">
+                    <span class="flex items-center gap-1.5 text-slate-300"><i class="fa-regular fa-calendar-check text-emerald-400"></i> Confrontos em Destaque</span>
+                    <span class="text-slate-500 font-medium" id="matchCounter">Carregando partidas...</span>
+                </div>
+                <div class="flex space-x-3 overflow-x-auto pb-2 pt-1" id="matchStrip"></div>
+            </section>
+
+            <!-- MATCH OVERVIEW BANNER -->
+            <section class="glass-card rounded-2xl p-5 sm:p-7 shadow-2xl relative overflow-hidden glow-emerald border border-brand-border">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center relative z-10">
+
+                    <div class="lg:col-span-7 bg-slate-950/60 p-5 sm:p-6 rounded-2xl border border-slate-800/80 flex items-center justify-between">
+                        <div class="flex flex-col items-center text-center w-2/5">
+                            <div class="w-16 h-16 sm:w-22 sm:h-22 rounded-2xl bg-slate-900 border border-slate-700/80 flex items-center justify-center p-3 mb-2 shadow-inner">
+                                <img id="homeBadge" src="" class="w-12 h-12 sm:w-16 sm:h-16 object-contain">
+                            </div>
+                            <h2 id="homeName" class="text-base sm:text-2xl font-black text-white tracking-tight">--</h2>
+                            <span class="text-[11px] font-bold text-emerald-400 mt-1.5 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 uppercase">Mandante</span>
+                        </div>
+
+                        <div class="flex flex-col items-center text-center px-2">
+                            <span class="text-[11px] font-extrabold text-slate-300 bg-slate-800/90 px-3 py-1 rounded-full border border-slate-700 uppercase" id="matchLeagueBadge">---</span>
+                            <span class="text-2xl sm:text-4xl font-black text-slate-600 my-1">VS</span>
+                            <span class="text-xs font-semibold text-slate-300" id="matchDate">--/--</span>
+                            <span class="text-[11px] text-slate-400 mt-1 flex items-center gap-1" id="matchVenue"><i class="fa-solid fa-location-dot text-rose-500"></i>--</span>
+                        </div>
+
+                        <div class="flex flex-col items-center text-center w-2/5">
+                            <div class="w-16 h-16 sm:w-22 sm:h-22 rounded-2xl bg-slate-900 border border-slate-700/80 flex items-center justify-center p-3 mb-2 shadow-inner">
+                                <img id="awayBadge" src="" class="w-12 h-12 sm:w-16 sm:h-16 object-contain">
+                            </div>
+                            <h2 id="awayName" class="text-base sm:text-2xl font-black text-white tracking-tight">--</h2>
+                            <span class="text-[11px] font-bold text-cyan-400 mt-1.5 bg-cyan-500/10 px-2.5 py-0.5 rounded-full border border-cyan-500/20 uppercase">Visitante</span>
+                        </div>
+                    </div>
+
+                    <!-- PROBABILITIES -->
+                    <div class="lg:col-span-5 bg-slate-950/60 p-5 rounded-2xl border border-slate-800/80 flex flex-col justify-between space-y-4">
+                        <div>
+                            <div class="flex justify-between items-center mb-3">
+                                <span class="text-xs font-bold text-slate-300 uppercase flex items-center gap-1.5"><i class="fa-solid fa-robot text-emerald-400"></i> Probabilidade de Resultado (Poisson)</span>
+                            </div>
+                            <div class="mb-3.5 bg-gradient-to-r from-emerald-500/10 via-cyan-500/10 to-transparent p-2.5 rounded-xl border border-emerald-500/30 flex items-center justify-between">
+                                <span class="text-xs text-slate-300 font-medium"><i class="fa-solid fa-trophy text-amber-400 mr-1"></i> Favorito Mapeado:</span>
+                                <span class="text-xs font-black text-white bg-slate-900 px-3 py-1 rounded-lg border border-slate-700 text-emerald-400" id="favBadgeText">--</span>
+                            </div>
+                            <div class="h-4 w-full bg-slate-900 rounded-full overflow-hidden flex p-0.5 border border-slate-800">
+                                <div id="probHomeBar" class="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-l-full transition-all duration-700" style="width: 33%;"></div>
+                                <div id="probDrawBar" class="h-full bg-slate-600 transition-all duration-700" style="width: 33%;"></div>
+                                <div id="probAwayBar" class="h-full bg-gradient-to-r from-cyan-400 to-cyan-500 rounded-r-full transition-all duration-700" style="width: 34%;"></div>
+                            </div>
+                            <div class="flex justify-between items-center mt-3 text-xs font-bold">
+                                <div class="text-emerald-400 flex flex-col"><span class="text-[10px] text-slate-400 uppercase">Vitória Mandante</span><span id="probHomeText">--%</span></div>
+                                <div class="text-slate-300 flex flex-col items-center"><span class="text-[10px] text-slate-400 uppercase">Empate</span><span id="probDrawText">--%</span></div>
+                                <div class="text-cyan-400 flex flex-col items-end"><span class="text-[10px] text-slate-400 uppercase">Vitória Visitante</span><span id="probAwayText">--%</span></div>
+                            </div>
+                        </div>
+
+                        <div class="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
+                            <div class="flex items-center gap-2">
+                                <span class="text-slate-400 font-medium">Placar Provável:</span>
+                                <span class="bg-emerald-500/10 border border-emerald-500/30 px-3 py-0.5 rounded-lg text-emerald-300 font-black text-sm" id="predictedScore">--</span>
+                            </div>
+                            <button onclick="carregarDadosAPI()" class="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 transition">
+                                <i class="fa-solid fa-arrows-rotate text-xs" id="refreshIcon"></i>
+                                <span>Recalcular Previsão</span>
+                            </button>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- STATS BARS -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div class="lg:col-span-7 glass-card rounded-2xl p-5 space-y-5 border border-brand-border">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <h3 class="text-base font-bold text-white flex items-center gap-2"><i class="fa-solid fa-chart-column text-emerald-400"></i> Previsão de Métricas da Partida</h3>
+                    </div>
+                    <div class="space-y-3.5" id="metricsContainer"></div>
+                </div>
+
+                <div class="lg:col-span-5 space-y-6">
+                    <div class="glass-card rounded-2xl p-5 space-y-4 border border-brand-border">
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2"><i class="fa-solid fa-futbol text-emerald-400"></i> Artilheiros Probáveis</h3>
+                        <div class="space-y-2.5" id="goalscorersList"></div>
+                    </div>
+                    <div class="glass-card rounded-2xl p-5 space-y-4 border border-brand-border">
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2"><i class="fa-solid fa-handshake-angle text-cyan-400"></i> Líderes em Assistências</h3>
+                        <div class="space-y-2.5" id="assistsList"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const API_KEY = "9ddcd0874543b5fb842ab23fd4793f54";
+        const LIGAS = { brasileirao: 71, champions: 2, premier: 39 };
+
+        let matchesData = [];
+        let activeMatchId = '';
+        let activeFilter = 'last5';
+
+        const metricLabels = {
+            shots: { title: 'Chutes Totais', icon: 'fa-bullseye', color: 'text-slate-300' },
+            shotsOnTarget: { title: 'Chutes a Gol', icon: 'fa-crosshairs', color: 'text-emerald-400' },
+            corners: { title: 'Escanteios', icon: 'fa-flag', color: 'text-cyan-400' },
+            fouls: { title: 'Faltas Cometidas', icon: 'fa-ban', color: 'text-rose-400' },
+            yellowCards: { title: 'Cartões Amarelos', icon: 'fa-square', color: 'text-yellow-400' },
+            redCards: { title: 'Cartões Vermelhos', icon: 'fa-square', color: 'text-red-500' }
+        };
+
+        // FÓRMULA DE POISSON EM JAVASCRIPT
+        function factorial(n) {
+            if (n === 0 || n === 1) return 1;
+            let res = 1;
+            for (let i = 2; i <= n; i++) res *= i;
+            return res;
+        }
+
+        function poissonPMF(k, lambda) {
+            return (Math.pow(lambda, k) * Math.exp(-lambda)) / factorial(k);
+        }
+
+        function calcularPoisson(expHome = 1.6, expAway = 1.1) {
+            let vHome = 0, emp = 0, vAway = 0;
+            for (let gh = 0; gh < 10; gh++) {
+                for (let ga = 0; ga < 10; ga++) {
+                    let p = poissonPMF(gh, expHome) * poissonPMF(ga, expAway);
+                    if (gh > ga) vHome += p;
+                    else if (gh === ga) emp += p;
+                    else vAway += p;
+                }
+            }
+            return {
+                home_win: +(vHome * 100).toFixed(1),
+                draw: +(emp * 100).toFixed(1),
+                away_win: +(vAway * 100).toFixed(1)
+            };
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            carregarPartidasDaLiga('brasileirao');
+        });
+
+        async function carregarPartidasDaLiga(ligaKey) {
+            const strip = document.getElementById('matchStrip');
+            strip.innerHTML = `<div class="text-xs text-slate-400 py-3 italic">Buscando jogos diretamente da API-Football...</div>`;
+
+            const leagueId = LIGAS[ligaKey] || 71;
+            const url = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=2026&next=10`;
+
+            try {
+                const response = await fetch(url, {
+                    headers: { 'x-apisports-key': API_KEY }
+                });
+                const data = await response.json();
+
+                if (data.response && data.response.length > 0) {
+                    matchesData = data.response.map(item => {
+                        const fix = item.fixture;
+                        const teams = item.teams;
+                        const probs = calcularPoisson(1.6, 1.1);
+
+                        return {
+                            id: `fix-${fix.id}`,
+                            league: ligaKey,
+                            leagueName: item.league.name,
+                            date: fix.date.substring(0, 10),
+                            venue: fix.venue.name || 'Estádio Não Definido',
+                            exp_home: 1.6,
+                            exp_away: 1.1,
+                            home: { name: teams.home.name, badge: teams.home.logo },
+                            away: { name: teams.away.name, badge: teams.away.logo },
+                            probabilities: probs,
+                            predictedScore: '2 - 1',
+                            favorito: `${teams.home.name} (${probs.home_win}%)`,
+                            totalGoals: '2.7 Gols',
+                            totalCorners: '10.5',
+                            totalCards: '5.0',
+                            filters: {
+                                last5: {
+                                    shots: { home: 14.0, away: 11.0, max: 22 },
+                                    shotsOnTarget: { home: 5.5, away: 4.0, max: 10 },
+                                    corners: { home: 6.5, away: 4.5, max: 12 },
+                                    fouls: { home: 13.0, away: 14.0, max: 22 },
+                                    yellowCards: { home: 2.1, away: 2.5, max: 6 },
+                                    redCards: { home: 0.1, away: 0.2, max: 2 }
+                                }
+                            },
+                            goalscorers: [
+                                { name: 'Atacante Principal', team: teams.home.name, pos: 'ATA', prob: 55, teamType: 'home' },
+                                { name: 'Meia Atacante', team: teams.away.name, pos: 'MEI', prob: 38, teamType: 'away' }
+                            ],
+                            assists: [
+                                { name: 'Líder em Assistências', team: teams.home.name, pos: 'MEI', prob: 45, teamType: 'home' },
+                                { name: 'Lateral Direito', team: teams.away.name, pos: 'DEF', prob: 32, teamType: 'away' }
+                            ]
+                        };
+                    });
+
+                    activeMatchId = matchesData[0].id;
+                    renderMatchStrip();
+                    loadMatchDetails(activeMatchId);
+                } else {
+                    strip.innerHTML = `<div class="text-xs text-slate-500 py-3 italic">Nenhum jogo encontrado.</div>`;
+                }
+            } catch (err) {
+                strip.innerHTML = `<div class="text-xs text-rose-400 py-3 italic">Erro ao consultar a API. Verifique a sua chave.</div>`;
+            }
+        }
+
+        function renderMatchStrip() {
+            const strip = document.getElementById('matchStrip');
+            strip.innerHTML = '';
+            document.getElementById('matchCounter').innerText = `Mostrando ${matchesData.length} jogo(s)`;
+
+            matchesData.forEach(m => {
+                const isActive = m.id === activeMatchId;
+                const card = document.createElement('div');
+                card.className = `flex-shrink-0 w-64 p-3.5 rounded-2xl border cursor-pointer glass-card-hover select-none ${isActive ? 'bg-slate-800/90 border-emerald-500 shadow-lg' : 'glass-card border-brand-border'}`;
+                card.onclick = () => selectMatch(m.id);
+
+                card.innerHTML = `
+          <div class="flex justify-between items-center text-[10px] text-slate-400 font-bold mb-2">
+              <span class="truncate max-w-[120px] text-slate-300">${m.leagueName}</span>
+              <span class="text-emerald-400">${m.date}</span>
+          </div>
+          <div class="flex items-center justify-between my-1">
+              <div class="flex items-center gap-2">
+                  <img src="${m.home.badge}" class="w-6 h-6 object-contain" onerror="this.src='https://placehold.co/40x40/111827/FFF?text=C'">
+                  <span class="text-xs font-bold text-white truncate max-w-[80px]">${m.home.name}</span>
+              </div>
+              <span class="text-xs font-black text-slate-600 px-1">vs</span>
+              <div class="flex items-center gap-2 flex-row-reverse">
+                  <img src="${m.away.badge}" class="w-6 h-6 object-contain" onerror="this.src='https://placehold.co/40x40/111827/FFF?text=V'">
+                  <span class="text-xs font-bold text-white truncate max-w-[80px]">${m.away.name}</span>
+              </div>
+          </div>
+        `;
+                strip.appendChild(card);
+            });
+        }
+
+        function selectMatch(id) {
+            activeMatchId = id;
+            renderMatchStrip();
+            loadMatchDetails(id);
+        }
+
+        function loadMatchDetails(id) {
+            const match = matchesData.find(m => m.id === id);
+            if (!match) return;
+
+            document.getElementById('homeName').innerText = match.home.name;
+            document.getElementById('homeBadge').src = match.home.badge;
+            document.getElementById('awayName').innerText = match.away.name;
+            document.getElementById('awayBadge').src = match.away.badge;
+
+            document.getElementById('matchLeagueBadge').innerText = match.leagueName;
+            document.getElementById('matchDate').innerText = match.date;
+            document.getElementById('matchVenue').innerHTML = `<i class="fa-solid fa-location-dot text-rose-500 mr-1"></i>${match.venue}`;
+
+            document.getElementById('probHomeBar').style.width = match.probabilities.home_win + '%';
+            document.getElementById('probDrawBar').style.width = match.probabilities.draw + '%';
+            document.getElementById('probAwayBar').style.width = match.probabilities.away_win + '%';
+
+            document.getElementById('probHomeText').innerText = match.probabilities.home_win + '%';
+            document.getElementById('probDrawText').innerText = match.probabilities.draw + '%';
+            document.getElementById('probAwayText').innerText = match.probabilities.away_win + '%';
+
+            document.getElementById('predictedScore').innerText = match.predictedScore;
+            document.getElementById('favBadgeText').innerText = match.favorito;
+
+            renderMetrics(match);
+            renderPlayers(match);
+        }
+
+        function renderMetrics(match) {
+            const container = document.getElementById('metricsContainer');
+            container.innerHTML = '';
+            const currentFilterData = match.filters[activeFilter];
+
+            Object.keys(metricLabels).forEach(key => {
+                const labelInfo = metricLabels[key];
+                const statVal = currentFilterData[key];
+                const homeVal = statVal.home;
+                const awayVal = statVal.away;
+                const maxVal = statVal.max;
+
+                const homePct = Math.min((homeVal / maxVal) * 100, 100);
+                const awayPct = Math.min((awayVal / maxVal) * 100, 100);
+
+                const item = document.createElement('div');
+                item.className = 'bg-slate-900/60 p-3 rounded-xl border border-slate-800/80 space-y-2';
+                item.innerHTML = `
+          <div class="flex justify-between items-center text-xs font-bold">
+              <span class="text-emerald-400 text-sm w-12 text-left">${homeVal}</span>
+              <span class="text-slate-300 font-semibold flex items-center gap-1.5 text-xs"><i class="fa-solid ${labelInfo.icon} ${labelInfo.color}"></i> ${labelInfo.title}</span>
+              <span class="text-cyan-400 text-sm w-12 text-right">${awayVal}</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 items-center">
+              <div class="h-2.5 w-full bg-slate-950 rounded-full overflow-hidden flex justify-end">
+                  <div class="stat-bar-fill h-full bg-gradient-to-l from-emerald-400 to-emerald-600 rounded-full" style="width: ${homePct}%;"></div>
+              </div>
+              <div class="h-2.5 w-full bg-slate-950 rounded-full overflow-hidden flex justify-start">
+                  <div class="stat-bar-fill h-full bg-gradient-to-r from-cyan-400 to-cyan-600 rounded-full" style="width: ${awayPct}%;"></div>
+              </div>
+          </div>
+        `;
+                container.appendChild(item);
+            });
+        }
+
+        function renderPlayers(match) {
+            const goalsList = document.getElementById('goalscorersList');
+            goalsList.innerHTML = '';
+            match.goalscorers.forEach(p => {
+                const colorClass = p.teamType === 'home' ? 'emerald' : 'cyan';
+                const el = document.createElement('div');
+                el.className = 'flex items-center justify-between bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80';
+                el.innerHTML = `
+          <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-black text-xs text-white">${p.pos}</div>
+              <div><div class="text-xs font-bold text-white">${p.name}</div><div class="text-[10px] text-slate-400">${p.team}</div></div>
+          </div>
+          <span class="text-xs font-black text-${colorClass}-400">${p.prob}%</span>
+        `;
+                goalsList.appendChild(el);
+            });
+
+            const assistsList = document.getElementById('assistsList');
+            assistsList.innerHTML = '';
+            match.assists.forEach(p => {
+                const colorClass = p.teamType === 'home' ? 'emerald' : 'cyan';
+                const el = document.createElement('div');
+                el.className = 'flex items-center justify-between bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80';
+                el.innerHTML = `
+          <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center font-black text-xs text-white">${p.pos}</div>
+              <div><div class="text-xs font-bold text-white">${p.name}</div><div class="text-[10px] text-slate-400">${p.team}</div></div>
+          </div>
+          <span class="text-xs font-black text-${colorClass}-400">${p.prob}%</span>
+        `;
+                assistsList.appendChild(el);
+            });
+        }
+
+        function carregarDadosAPI() {
+            const match = matchesData.find(m => m.id === activeMatchId);
+            if (!match) return;
+
+            const icon = document.getElementById('refreshIcon');
+            icon.classList.add('fa-spin');
+
+            setTimeout(() => {
+                match.probabilities = calcularPoisson(match.exp_home, match.exp_away);
+                loadMatchDetails(activeMatchId);
+                icon.classList.remove('fa-spin');
+            }, 300);
+        }
+
+        function filterLeague(leagueVal) {
+            carregarPartidasDaLiga(leagueVal);
+        }
+    </script>
+</body>
+
+</html>
