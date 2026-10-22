@@ -16,7 +16,7 @@ export default async function handler(req, res) {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({ error: "GEMINI_API_KEY não encontrada." });
+    return res.status(500).json({ error: "GEMINI_API_KEY não configurada na Vercel." });
   }
 
   const nomesLigas = {
@@ -74,7 +74,6 @@ Retorne estritamente um JSON no seguinte formato (sem texto antes ou depois):
     const data = await response.json();
     const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // Extração limpa do bloco JSON
     const cleanText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
     const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
     
