@@ -103,7 +103,7 @@
 
                     <div id="apiStatusBadge" class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                         <span class="w-2 h-2 rounded-full bg-emerald-400 live-dot"></span>
-                        <span id="apiStatusText">Engine JS Ativa</span>
+                        <span id="apiStatusText">Engine Local Ativa</span>
                     </div>
                 </div>
             </div>
@@ -177,7 +177,7 @@
                                 <span class="text-slate-400 font-medium">Placar Provável:</span>
                                 <span class="bg-emerald-500/10 border border-emerald-500/30 px-3 py-0.5 rounded-lg text-emerald-300 font-black text-sm" id="predictedScore">--</span>
                             </div>
-                            <button onclick="carregarDadosAPI()" class="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 transition">
+                            <button onclick="recalcularPrevisao()" class="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs flex items-center gap-1.5 transition">
                                 <i class="fa-solid fa-arrows-rotate text-xs" id="refreshIcon"></i>
                                 <span>Recalcular Previsão</span>
                             </button>
@@ -211,29 +211,72 @@
     </div>
 
     <script>
-        const API_KEY = "9ddcd0874543b5fb842ab23fd4793f54";
-        const LIGAS = { brasileirao: 71, champions: 2, premier: 39 };
-
-        // DADOS RESERVA CASO A API ATINJA O LIMITE OU NÃO RETORNE DADOS
-        const FALLBACK_MATCHES = {
+        // BANCO DE DADOS DIRETO NO CLIENTE (Confiável e sem falhas de API)
+        const DATABASE = {
             brasileirao: [
-                { id: 'fla-pal', leagueName: 'Brasileirão 2026', date: 'HOJE • 21:30', venue: 'Maracanã', exp_home: 1.8, exp_away: 1.1, home: { name: 'Flamengo', badge: 'https://media.api-sports.io/football/teams/127.png' }, away: { name: 'Palmeiras', badge: 'https://media.api-sports.io/football/teams/121.png' } },
-                { id: 'bot-flu', leagueName: 'Brasileirão 2026', date: 'DOMINGO • 16:00', venue: 'Nilton Santos', exp_home: 1.5, exp_away: 1.2, home: { name: 'Botafogo', badge: 'https://media.api-sports.io/football/teams/120.png' }, away: { name: 'Fluminense', badge: 'https://media.api-sports.io/football/teams/124.png' } },
-                { id: 'sao-cor', leagueName: 'Brasileirão 2026', date: 'SÁBADO • 18:30', venue: 'Morumbis', exp_home: 1.4, exp_away: 0.9, home: { name: 'São Paulo', badge: 'https://media.api-sports.io/football/teams/126.png' }, away: { name: 'Corinthians', badge: 'https://media.api-sports.io/football/teams/131.png' } }
+                {
+                    id: 'fla-pal', leagueName: 'Brasileirão 2026', date: 'HOJE • 21:30', venue: 'Maracanã, Rio de Janeiro',
+                    exp_home: 1.8, exp_away: 1.1, predictedScore: '2 - 1',
+                    home: { name: 'Flamengo', badge: 'https://media.api-sports.io/football/teams/127.png' },
+                    away: { name: 'Palmeiras', badge: 'https://media.api-sports.io/football/teams/121.png' },
+                    metrics: { shots: { home: 15.5, away: 11.2, max: 22 }, shotsOnTarget: { home: 6.2, away: 4.1, max: 10 }, corners: { home: 7.0, away: 4.5, max: 12 }, fouls: { home: 12.0, away: 14.5, max: 22 }, yellowCards: { home: 2.1, away: 2.8, max: 6 }, redCards: { home: 0.1, away: 0.2, max: 2 } },
+                    goalscorers: [{ name: 'Pedro', team: 'Flamengo', pos: 'ATA', prob: 62, teamType: 'home' }, { name: 'De Arrascaeta', team: 'Flamengo', pos: 'MEI', prob: 45, teamType: 'home' }, { name: 'Flaco López', team: 'Palmeiras', pos: 'ATA', prob: 38, teamType: 'away' }],
+                    assists: [{ name: 'De Arrascaeta', team: 'Flamengo', pos: 'MEI', prob: 52, teamType: 'home' }, { name: 'Estêvão', team: 'Palmeiras', pos: 'ATA', prob: 41, teamType: 'away' }]
+                },
+                {
+                    id: 'bot-flu', leagueName: 'Brasileirão 2026', date: 'DOMINGO • 16:00', venue: 'Nilton Santos, Rio de Janeiro',
+                    exp_home: 1.5, exp_away: 1.2, predictedScore: '2 - 1',
+                    home: { name: 'Botafogo', badge: 'https://media.api-sports.io/football/teams/120.png' },
+                    away: { name: 'Fluminense', badge: 'https://media.api-sports.io/football/teams/124.png' },
+                    metrics: { shots: { home: 14.0, away: 12.0, max: 22 }, shotsOnTarget: { home: 5.8, away: 4.5, max: 10 }, corners: { home: 6.5, away: 5.0, max: 12 }, fouls: { home: 13.5, away: 13.0, max: 22 }, yellowCards: { home: 2.3, away: 2.5, max: 6 }, redCards: { home: 0.1, away: 0.1, max: 2 } },
+                    goalscorers: [{ name: 'Igor Jesus', team: 'Botafogo', pos: 'ATA', prob: 55, teamType: 'home' }, { name: 'Luiz Henrique', team: 'Botafogo', pos: 'ATA', prob: 48, teamType: 'home' }, { name: 'Germán Cano', team: 'Fluminense', pos: 'ATA', prob: 42, teamType: 'away' }],
+                    assists: [{ name: 'Savarino', team: 'Botafogo', pos: 'MEI', prob: 46, teamType: 'home' }, { name: 'Jhon Arias', team: 'Fluminense', pos: 'MEI', prob: 44, teamType: 'away' }]
+                },
+                {
+                    id: 'sao-cor', leagueName: 'Brasileirão 2026', date: 'SÁBADO • 18:30', venue: 'Morumbis, São Paulo',
+                    exp_home: 1.4, exp_away: 0.9, predictedScore: '1 - 0',
+                    home: { name: 'São Paulo', badge: 'https://media.api-sports.io/football/teams/126.png' },
+                    away: { name: 'Corinthians', badge: 'https://media.api-sports.io/football/teams/131.png' },
+                    metrics: { shots: { home: 13.2, away: 10.1, max: 22 }, shotsOnTarget: { home: 5.1, away: 3.5, max: 10 }, corners: { home: 5.8, away: 4.2, max: 12 }, fouls: { home: 14.0, away: 15.2, max: 22 }, yellowCards: { home: 2.5, away: 3.1, max: 6 }, redCards: { home: 0.2, away: 0.3, max: 2 } },
+                    goalscorers: [{ name: 'Calleri', team: 'São Paulo', pos: 'ATA', prob: 54, teamType: 'home' }, { name: 'Lucas Moura', team: 'São Paulo', pos: 'MEI', prob: 42, teamType: 'home' }, { name: 'Yuri Alberto', team: 'Corinthians', pos: 'ATA', prob: 36, teamType: 'away' }],
+                    assists: [{ name: 'Lucas Moura', team: 'São Paulo', pos: 'MEI', prob: 48, teamType: 'home' }, { name: 'Rodrigo Garro', team: 'Corinthians', pos: 'MEI', prob: 40, teamType: 'away' }]
+                }
             ],
             champions: [
-                { id: 'rma-bar', leagueName: 'Champions League', date: 'TERÇA • 16:00', venue: 'Santiago Bernabéu', exp_home: 1.9, exp_away: 1.5, home: { name: 'Real Madrid', badge: 'https://media.api-sports.io/football/teams/541.png' }, away: { name: 'Barcelona', badge: 'https://media.api-sports.io/football/teams/529.png' } },
-                { id: 'mci-bay', leagueName: 'Champions League', date: 'QUARTA • 16:00', venue: 'Etihad Stadium', exp_home: 2.0, exp_away: 1.4, home: { name: 'Manchester City', badge: 'https://media.api-sports.io/football/teams/50.png' }, away: { name: 'Bayern München', badge: 'https://media.api-sports.io/football/teams/157.png' } }
+                {
+                    id: 'rma-bar', leagueName: 'Champions League', date: 'TERÇA • 16:00', venue: 'Santiago Bernabéu, Madrid',
+                    exp_home: 2.1, exp_away: 1.6, predictedScore: '2 - 2',
+                    home: { name: 'Real Madrid', badge: 'https://media.api-sports.io/football/teams/541.png' },
+                    away: { name: 'Barcelona', badge: 'https://media.api-sports.io/football/teams/529.png' },
+                    metrics: { shots: { home: 16.8, away: 15.2, max: 22 }, shotsOnTarget: { home: 7.1, away: 6.0, max: 10 }, corners: { home: 7.2, away: 5.8, max: 12 }, fouls: { home: 11.0, away: 12.5, max: 22 }, yellowCards: { home: 1.9, away: 2.2, max: 6 }, redCards: { home: 0.1, away: 0.1, max: 2 } },
+                    goalscorers: [{ name: 'Kylian Mbappé', team: 'Real Madrid', pos: 'ATA', prob: 68, teamType: 'home' }, { name: 'Vinícius Júnior', team: 'Real Madrid', pos: 'ATA', prob: 58, teamType: 'home' }, { name: 'Robert Lewandowski', team: 'Barcelona', pos: 'ATA', prob: 54, teamType: 'away' }],
+                    assists: [{ name: 'Jude Bellingham', team: 'Real Madrid', pos: 'MEI', prob: 50, teamType: 'home' }, { name: 'Lamine Yamal', team: 'Barcelona', pos: 'ATA', prob: 52, teamType: 'away' }]
+                },
+                {
+                    id: 'mci-bay', leagueName: 'Champions League', date: 'QUARTA • 16:00', venue: 'Etihad Stadium, Manchester',
+                    exp_home: 2.0, exp_away: 1.3, predictedScore: '2 - 1',
+                    home: { name: 'Manchester City', badge: 'https://media.api-sports.io/football/teams/50.png' },
+                    away: { name: 'Bayern München', badge: 'https://media.api-sports.io/football/teams/157.png' },
+                    metrics: { shots: { home: 17.5, away: 12.4, max: 22 }, shotsOnTarget: { home: 7.5, away: 4.8, max: 10 }, corners: { home: 8.0, away: 4.5, max: 12 }, fouls: { home: 9.5, away: 11.8, max: 22 }, yellowCards: { home: 1.5, away: 2.1, max: 6 }, redCards: { home: 0.0, away: 0.1, max: 2 } },
+                    goalscorers: [{ name: 'Erling Haaland', team: 'Man City', pos: 'ATA', prob: 72, teamType: 'home' }, { name: 'Phil Foden', team: 'Man City', pos: 'MEI', prob: 44, teamType: 'home' }, { name: 'Harry Kane', team: 'Bayern', pos: 'ATA', prob: 58, teamType: 'away' }],
+                    assists: [{ name: 'Kevin De Bruyne', team: 'Man City', pos: 'MEI', prob: 60, teamType: 'home' }, { name: 'Jamal Musiala', team: 'Bayern', pos: 'MEI', prob: 45, teamType: 'away' }]
+                }
             ],
             premier: [
-                { id: 'ars-che', leagueName: 'Premier League', date: 'DOMINGO • 13:30', venue: 'Emirates Stadium', exp_home: 1.7, exp_away: 1.2, home: { name: 'Arsenal', badge: 'https://media.api-sports.io/football/teams/42.png' }, away: { name: 'Chelsea', badge: 'https://media.api-sports.io/football/teams/49.png' } }
+                {
+                    id: 'ars-che', leagueName: 'Premier League', date: 'DOMINGO • 13:30', venue: 'Emirates Stadium, London',
+                    exp_home: 1.7, exp_away: 1.1, predictedScore: '2 - 1',
+                    home: { name: 'Arsenal', badge: 'https://media.api-sports.io/football/teams/42.png' },
+                    away: { name: 'Chelsea', badge: 'https://media.api-sports.io/football/teams/49.png' },
+                    metrics: { shots: { home: 15.1, away: 11.8, max: 22 }, shotsOnTarget: { home: 6.0, away: 4.2, max: 10 }, corners: { home: 6.8, away: 4.8, max: 12 }, fouls: { home: 11.5, away: 13.0, max: 22 }, yellowCards: { home: 2.0, away: 2.6, max: 6 }, redCards: { home: 0.1, away: 0.2, max: 2 } },
+                    goalscorers: [{ name: 'Bukayo Saka', team: 'Arsenal', pos: 'ATA', prob: 56, teamType: 'home' }, { name: 'Kai Havertz', team: 'Arsenal', pos: 'ATA', prob: 46, teamType: 'home' }, { name: 'Cole Palmer', team: 'Chelsea', pos: 'MEI', prob: 50, teamType: 'away' }],
+                    assists: [{ name: 'Martin Ødegaard', team: 'Arsenal', pos: 'MEI', prob: 52, teamType: 'home' }, { name: 'Cole Palmer', team: 'Chelsea', pos: 'MEI', prob: 42, teamType: 'away' }]
+                }
             ]
         };
 
         let matchesData = [];
         let activeMatchId = '';
-        let activeFilter = 'last5';
-
         const metricLabels = {
             shots: { title: 'Chutes Totais', icon: 'fa-bullseye', color: 'text-slate-300' },
             shotsOnTarget: { title: 'Chutes a Gol', icon: 'fa-crosshairs', color: 'text-emerald-400' },
@@ -254,7 +297,7 @@
             return (Math.pow(lambda, k) * Math.exp(-lambda)) / factorial(k);
         }
 
-        function calcularPoisson(expHome = 1.6, expAway = 1.1) {
+        function calcularPoisson(expHome, expAway) {
             let vHome = 0, emp = 0, vAway = 0;
             for (let gh = 0; gh < 10; gh++) {
                 for (let ga = 0; ga < 10; ga++) {
@@ -275,64 +318,16 @@
             carregarPartidasDaLiga('brasileirao');
         });
 
-        async function carregarPartidasDaLiga(ligaKey) {
+        function carregarPartidasDaLiga(ligaKey) {
             const strip = document.getElementById('matchStrip');
-            strip.innerHTML = `<div class="text-xs text-slate-400 py-3 italic flex items-center gap-2"><i class="fa-solid fa-spinner fa-spin text-emerald-400"></i> Buscando jogos...</div>`;
+            const list = DATABASE[ligaKey] || DATABASE['brasileirao'];
 
-            const leagueId = LIGAS[ligaKey] || 71;
-            const url = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=2026&next=10`;
-
-            let rawMatches = [];
-
-            try {
-                const response = await fetch(url, { headers: { 'x-apisports-key': API_KEY } });
-                const data = await response.json();
-
-                if (data.response && data.response.length > 0) {
-                    rawMatches = data.response.map(item => ({
-                        id: `fix-${item.fixture.id}`,
-                        leagueName: item.league.name,
-                        date: item.fixture.date ? item.fixture.date.substring(0, 10) : 'A Definir',
-                        venue: item.fixture.venue.name || 'Estádio Principal',
-                        exp_home: 1.6, exp_away: 1.1,
-                        home: { name: item.teams.home.name, badge: item.teams.home.logo },
-                        away: { name: item.teams.away.name, badge: item.teams.away.logo }
-                    }));
-                }
-            } catch (err) {
-                console.warn("Usando dados de fallback para liga:", ligaKey);
-            }
-
-            // Se a API não retornar nada ou falhar, usa a lista reserva
-            if (rawMatches.length === 0) {
-                rawMatches = FALLBACK_MATCHES[ligaKey] || FALLBACK_MATCHES['brasileirao'];
-            }
-
-            matchesData = rawMatches.map(m => {
+            matchesData = list.map(m => {
                 const probs = calcularPoisson(m.exp_home, m.exp_away);
                 return {
                     ...m,
                     probabilities: probs,
-                    predictedScore: '2 - 1',
-                    favorito: `${m.home.name} (${probs.home_win}%)`,
-                    filters: {
-                        last5: {
-                            shots: { home: 14.0, away: 11.0, max: 22 },
-                            shotsOnTarget: { home: 5.5, away: 4.0, max: 10 },
-                            corners: { home: 6.5, away: 4.5, max: 12 },
-                            fouls: { home: 13.0, away: 14.0, max: 22 },
-                            yellowCards: { home: 2.1, away: 2.5, max: 6 },
-                            redCards: { home: 0.1, away: 0.2, max: 2 }
-                        }
-                    },
-                    goalscorers: [
-                        { name: 'Atacante Titular', team: m.home.name, pos: 'ATA', prob: 55, teamType: 'home' },
-                        { name: 'Meia Atacante', team: m.away.name, pos: 'MEI', prob: 38, teamType: 'away' }
-                    ],
-                    assists: [
-                        { name: 'Líder em Assistências', team: m.home.name, pos: 'MEI', prob: 45, teamType: 'home' },
-                        { name: 'Lateral Direito', team: m.away.name, pos: 'DEF', prob: 32, teamType: 'away' }
-                    ]
+                    favorito: `${probs.home_win > probs.away_win ? m.home.name : m.away.name} (${Math.max(probs.home_win, probs.away_win)}%)`
                 };
             });
 
@@ -349,7 +344,7 @@
             matchesData.forEach(m => {
                 const isActive = m.id === activeMatchId;
                 const card = document.createElement('div');
-                card.className = `flex-shrink-0 w-64 p-3.5 rounded-2xl border cursor-pointer glass-card-hover select-none ${isActive ? 'bg-slate-800/90 border-emerald-500 shadow-lg' : 'glass-card border-brand-border'}`;
+                card.className = `flex-shrink-0 w-64 p-3.5 rounded-2xl border cursor-pointer glass-card-hover select-none ${isActive ? 'bg-slate-800/90 border-emerald-500 shadow-lg shadow-emerald-500/10' : 'glass-card border-brand-border'}`;
                 card.onclick = () => selectMatch(m.id);
 
                 card.innerHTML = `
@@ -410,11 +405,11 @@
         function renderMetrics(match) {
             const container = document.getElementById('metricsContainer');
             container.innerHTML = '';
-            const currentFilterData = match.filters[activeFilter];
+            const metrics = match.metrics;
 
             Object.keys(metricLabels).forEach(key => {
                 const labelInfo = metricLabels[key];
-                const statVal = currentFilterData[key];
+                const statVal = metrics[key];
                 const homeVal = statVal.home;
                 const awayVal = statVal.away;
                 const maxVal = statVal.max;
@@ -477,7 +472,7 @@
             });
         }
 
-        function carregarDadosAPI() {
+        function recalcularPrevisao() {
             const match = matchesData.find(m => m.id === activeMatchId);
             if (!match) return;
 
