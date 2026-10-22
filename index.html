@@ -265,7 +265,9 @@
             strip.innerHTML = `<div class="text-xs text-slate-400 py-3 italic">Buscando jogos diretamente da API-Football...</div>`;
 
             const leagueId = LIGAS[ligaKey] || 71;
-            const url = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&season=2026&next=10`;
+
+            // Tenta buscar na temporada atual (2026/2025)
+            let url = `https://v3.football.api-sports.io/fixtures?league=${leagueId}&next=10`;
 
             try {
                 const response = await fetch(url, {
@@ -283,8 +285,8 @@
                             id: `fix-${fix.id}`,
                             league: ligaKey,
                             leagueName: item.league.name,
-                            date: fix.date.substring(0, 10),
-                            venue: fix.venue.name || 'Estádio Não Definido',
+                            date: fix.date ? fix.date.substring(0, 10) : 'A Definir',
+                            venue: (fix.venue && fix.venue.name) ? fix.venue.name : 'Estádio Não Definido',
                             exp_home: 1.6,
                             exp_away: 1.1,
                             home: { name: teams.home.name, badge: teams.home.logo },
@@ -320,10 +322,11 @@
                     renderMatchStrip();
                     loadMatchDetails(activeMatchId);
                 } else {
-                    strip.innerHTML = `<div class="text-xs text-slate-500 py-3 italic">Nenhum jogo encontrado.</div>`;
+                    strip.innerHTML = `<div class="text-xs text-amber-400 py-3 italic">Sem partidas agendadas no momento para esta liga.</div>`;
                 }
             } catch (err) {
-                strip.innerHTML = `<div class="text-xs text-rose-400 py-3 italic">Erro ao consultar a API. Verifique a sua chave.</div>`;
+                console.error(err);
+                strip.innerHTML = `<div class="text-xs text-rose-400 py-3 italic">Erro ao consultar a API. Verifique a cota da sua chave.</div>`;
             }
         }
 
