@@ -1,5 +1,5 @@
 export default async function handler(req, res) {
-  // Configuração de CORS
+  // Cabeçalhos explícitos para CORS
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS,PATCH,DELETE,POST,PUT");
@@ -17,7 +17,7 @@ export default async function handler(req, res) {
   const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({ error: "GEMINI_API_KEY não encontrada nas variáveis da Vercel." });
+    return res.status(500).json({ error: "GEMINI_API_KEY não configurada na Vercel." });
   }
 
   const nomesLigas = {
@@ -28,8 +28,8 @@ export default async function handler(req, res) {
 
   const nomeLiga = nomesLigas[liga] || "Brasileirão Série A 2026";
 
-  const prompt = `Pesquise no Google o histórico acumulado desde a Rodada 1 até hoje e os próximos 10 jogos da competição "${nomeLiga}".
-  Retorne APENAS um JSON válido no seguinte formato exato, sem textos adicionais ou marcações markdown:
+  const prompt = `Pesquise no Google o histórico acumulado de todas as rodadas até hoje e os próximos 10 jogos da competição "${nomeLiga}".
+  Retorne APENAS um objeto JSON válido exatamente nesta estrutura:
   {
     "partidas": [
       {
@@ -53,30 +53,37 @@ export default async function handler(req, res) {
       }
     ]
   }
-  Calcule "exp_home" e "exp_away" com base na média real de gols marcados e sofridos por cada equipe desde a Rodada 1.`;
+  Calcule "exp_home" e "exp_away" com base na média de gols marcados e sofridos desde a Rodada 1.`;
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          tools: [{ google_search: {} }],
-        }),
-      }
-    );
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        tools: [{ google_search: {} }],
+        generationConfig: {
+          response_mime_type: "application/json"
+        }
+      }),
+    });
 
     const data = await response.json();
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
 
-    const cleanJson = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
-    const parsedData = JSON.parse(cleanJson);
+    let parsedData = { partidas: [] };
+    try {
+      const cleanJson = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
+      parsedData = JSON.parse(cleanJson);
+    } catch (parseErr) {
+      console.error("Erro no parse de JSON do Gemini:", rawText);
+    }
 
     return res.status(200).json({ status: "success", partidas: parsedData.partidas || [] });
   } catch (err) {
-    console.error("Erro na requisição Gemini:", err);
-    return res.status(500).json({ error: "Falha ao processar os dados com o Gemini", details: err.message });
+    console.error("Erro geral na função:", err);
+    return res.status(200).json({ status: "error", error: err.message, partidas: [] });
   }
 }
